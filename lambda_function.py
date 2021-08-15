@@ -28,7 +28,9 @@ notify_phases = ["QUEUED", "BUILD", "COMPLETED"]
 
 def parse_codebuild_event(event):
     detail = event.get("detail", {})
-    phase = detail.get("current-phase", "Unknown")
+    phase = detail.get("current-phase", None)
+    if phase is None:
+        phase = detail.get("completed-phase", None)
     if phase not in notify_phases:
         return None
 
@@ -39,7 +41,7 @@ def parse_codebuild_event(event):
     if not build_type:
         return None
         
-    phases = detail.get("phases", [])
+    phases = additional.get("phases", [])
     phases = {item.get("phase-type", None): item for item in phases}
     
     items = [
@@ -65,7 +67,7 @@ def parse_codebuild_event(event):
         },
         {
             'name': 'Status',
-            'value': detail.get("build-status", "Unknown"),
+            'value': detail.get("build-status", "IN PROGRESS"),
             'inline': True,
         },
         {
