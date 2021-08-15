@@ -22,30 +22,85 @@ def parse_service_event(event):
     elif source == "aws.codebuild":
         return parse_codebuild_event(event)
         
+    
+notify_phases = ["QUEUED", "BUILD", "COMPLETED"]
+        
 
 def parse_codebuild_event(event):
-    return None
+    detail = event.get("detail", {})
+    phase = detail.get("current-phase", "Unknown")
+    if phase not in notify_phases:
+        return None
+
+    additional = detail.get("additional-information", {})
+    envvars = additional.get("environment", {}).get("environment-variables", [])
+    envvars = {item.get("name", None): item.get("value", None) for item in envvars}
+    build_type = envvars.get("BUILD", None)
+    if not build_type:
+        return None
+        
+    phases = detail.get("phases", [])
+    phases = {item.get("phase-type", None): item for item in phases}
+    
+    items = [
+        {
+            'name': "Project",
+            'value': detail.get("project-name", "Unknown"),
+            'inline': True,
+        },
+        {
+            'name': "Build Type",
+            'value': build_type,
+            'inline': True,
+        },
+        {
+            'name': "Architecture",
+            'value': envvars.get("ARCH", "Unknown"),
+            'inline': True,
+        },
+        {
+            'name': "Build Number",
+            'value': int(additional.get("build-number", -1.0)),
+            'inline': True,
+        },
+        {
+            'name': 'Status',
+            'value': detail.get("build-status", "Unknown"),
+            'inline': True,
+        },
+        {
+            'name': 'Current Phase',
+            'value': phase,
+            'inline': True,
+        }
+    ]
+
+    build_phase = phases.get("BUILD", {})
+    if build_phase.get("end-time", None):
+        build_time = build_phase.get("duration-in-seconds", None)
+        if build_time is not None:
+            items.append(
+                {
+                    'name': "Build Time (s)",
+                    'value': build_time,
+                    'inline': True,
+                })
+
+    return items
 
         
 def parse_codepipeline_event(event):
     detail = event.get("detail", {})
-    trigger = event.get("execution-trigger", {})
-    
     items = [
         {
             'name': 'Pipeline',
             'value': detail.get("pipeline", "Unknown"),
-            "inline": True
-        },
-        {
-            'name': 'TriggerType',
-            'value': trigger.get("trigger-type", "Unknown"),
-            "inline": True
+            "inline": True,
         },
         {
             'name': 'State',
             'value': detail.get("state", "Unknown"),
-            "inline": True
+            "inline": True,
         },
     ]
     
@@ -55,7 +110,7 @@ def parse_codepipeline_event(event):
             {
                 'name': 'Stage',
                 'value': stage,
-                "inline": True
+                "inline": True,
             })
         
     action = detail.get("action", None)
@@ -64,7 +119,7 @@ def parse_codepipeline_event(event):
             {
                 'name': 'Action',
                 'value': action,
-                "inline": True
+                "inline": True,
             })
         
     return items
