@@ -9,7 +9,7 @@ import logging
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
     
-notify_phases = ["QUEUED", "BUILD", "COMPLETED"]
+notify_phases = ["QUEUED", "BUILD", "COMPLETED", "FAILED"]
 
 status_colors = {
     "FAILED": 0xFF0000,
@@ -31,10 +31,12 @@ def parse_service_event(event):
 
 
 def parse_codebuild_event(event):
+    print(event)
     detail = event.get("detail", {})
-    phase = detail.get("current-phase", None)
+    phase = event.get("current-phase", None)
     if phase is None:
         phase = detail.get("completed-phase", None)
+    logger.info("Phase: %s" % phase)
     if phase not in notify_phases:
         return None
 
@@ -42,28 +44,18 @@ def parse_codebuild_event(event):
     envvars = additional.get("environment", {}).get("environment-variables", [])
     envvars = {item.get("name", None): item.get("value", None) for item in envvars}
     build_type = envvars.get("BUILD", None)
-    if not build_type:
-        return None
-        
+
     phases = additional.get("phases", [])
     phases = {item.get("phase-type", None): item for item in phases}
     
-    status = detail.get("build-status", "IN PROGRESS")
+    status = detail.get("build-status", None)
+    if not status:
+        status = detail.get("completed-phase-status", "IN PROGRESS")
     
     items = [
         {
             'name': "Project",
             'value': detail.get("project-name", "Unknown"),
-            'inline': True,
-        },
-        {
-            'name': "Build Type",
-            'value': build_type,
-            'inline': True,
-        },
-        {
-            'name': "Architecture",
-            'value': envvars.get("ARCH", "Unknown"),
             'inline': True,
         },
         {
@@ -77,11 +69,26 @@ def parse_codebuild_event(event):
             'inline': True,
         },
         {
-            'name': 'Current Phase',
+            'name': 'Phase',
             'value': phase,
             'inline': True,
         }
     ]
+
+    if build_type:
+        items.insert({
+            'name': "Build Type",
+            'value': build_type,
+            'inline': True,
+        }, 1)
+        
+        items.insert({
+            'name': "Architecture",
+            'value': envvars.get("ARCH", "Unknown"),
+            'inline': True,
+        }, 2)
+
+
 
     build_phase = phases.get("BUILD", {})
     if build_phase.get("end-time", None):
@@ -146,10 +153,12 @@ def lambda_handler(event, context):
     for record in event.get('Records', []):
         sns_message = json.loads(record['Sns']['Message'])
         try:
-            parsed_message, status = parse_service_event(sns_message)
+            parsed_message = parse_service_event(sns_message)
             if not parsed_message:
-                raise Exception
-        except Exception:
+                continue
+            fields, status = parsed_message
+        except Exception as e:
+            logger.error("Exception: %s" % e)
             continue
         
         color = status_colors.get(status, 0xCCCCCC)
@@ -159,9 +168,10 @@ def lambda_handler(event, context):
             'avatar_url': avatar_url,
             'embeds': [{
                 'color': color,
-                'fields': parsed_message
+                'fields': fields,
             }]
         }
+        logging.info("Discord message: %s" % discord_data)
 
         headers = {'content-type': 'application/json'}
         response = requests.post(webhook_url, data=json.dumps(discord_data),
