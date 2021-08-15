@@ -51,21 +51,21 @@ def parse_codepipeline_event(event):
     
     stage = detail.get("stage", None)
     if stage:
-    items.append(
-        {
-            'name': 'Stage',
-            'value': stage,
-            "inline": True
-        })
+        items.append(
+            {
+                'name': 'Stage',
+                'value': stage,
+                "inline": True
+            })
         
     action = detail.get("action", None)
     if action:
-    items.append(
-        {
-            'name': 'Action',
-            'value': action,
-            "inline": True
-        })
+        items.append(
+            {
+                'name': 'Action',
+                'value': action,
+                "inline": True
+            })
         
     return items
 
