@@ -9,7 +9,7 @@ import logging
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
     
-notify_phases = ["QUEUED", "BUILD", "COMPLETED", "FAILED"]
+notify_phases = ["QUEUED", "BUILD", "COMPLETED", "FAILED", "POST_BUILD"]
 
 status_colors = {
     "FAILED": 0xFF0000,
@@ -55,7 +55,7 @@ def parse_codebuild_event(event):
     if phase == "QUEUED" and status == "SUCCEEDED":
         phase = "BUILD"
         status = "IN PROGRESS"
-    
+
     items = []
     items.append(
         {
@@ -105,7 +105,7 @@ def parse_codebuild_event(event):
             items.append(
                 {
                     'name': "Build Time (s)",
-                    'value': build_time,
+                    'value': int(build_time),
                     'inline': True,
                 })
 
