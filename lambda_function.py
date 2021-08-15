@@ -44,7 +44,7 @@ def parse_codepipeline_event(event):
         },
         {
             'name': 'State',
-            'value': detail.get("state", Unknown),
+            'value': detail.get("state", "Unknown"),
             "inline": True
         },
     ]
