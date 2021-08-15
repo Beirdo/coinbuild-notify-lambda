@@ -9,7 +9,7 @@ import logging
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
     
-notify_phases = ["QUEUED", "BUILD", "COMPLETED", "FAILED", "POST_BUILD"]
+notify_phases = ["QUEUED", "BUILD", "COMPLETED", "FAILED"]
 
 status_colors = {
     "FAILED": 0xFF0000,
