@@ -52,43 +52,51 @@ def parse_codebuild_event(event):
     if not status:
         status = detail.get("completed-phase-status", "IN PROGRESS")
     
-    items = [
+    if phase == "QUEUED" and status == "SUCCEEDED":
+        phase = "BUILD"
+        status = "IN PROGRESS"
+    
+    items = []
+    items.append(
         {
             'name': "Project",
             'value': detail.get("project-name", "Unknown"),
             'inline': True,
-        },
-        {
-            'name': "Build Number",
-            'value': int(additional.get("build-number", -1.0)),
-            'inline': True,
-        },
-        {
-            'name': 'Status',
-            'value': status,
-            'inline': True,
-        },
-        {
-            'name': 'Phase',
-            'value': phase,
-            'inline': True,
-        }
-    ]
-
-    if build_type:
-        items.insert({
-            'name': "Build Type",
-            'value': build_type,
-            'inline': True,
-        }, 1)
+        })
         
-        items.insert({
-            'name': "Architecture",
-            'value': envvars.get("ARCH", "Unknown"),
-            'inline': True,
-        }, 2)
+    if build_type:
+        items.extend(
+            [
+                {
+                    'name': "Build Type",
+                    'value': build_type,
+                    'inline': True,
+                },
+                {
+                    'name': "Architecture",
+                    'value': envvars.get("ARCH", "Unknown"),
+                    'inline': True,
+                }
+            ])
 
-
+        items.extend(
+            [
+                {
+                    'name': "Build Number",
+                    'value': int(additional.get("build-number", -1.0)),
+                    'inline': True,
+                },
+                {
+                    'name': 'Status',
+                    'value': status,
+                    'inline': True,
+                },
+                {
+                    'name': 'Phase',
+                    'value': phase,
+                    'inline': True,
+                }
+            ])
 
     build_phase = phases.get("BUILD", {})
     if build_phase.get("end-time", None):
