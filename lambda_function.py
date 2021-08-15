@@ -4,15 +4,22 @@ import json
 import requests
 import os
 import logging
+
+
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
+    
+notify_phases = ["QUEUED", "BUILD", "COMPLETED"]
 
+status_colors = {
+    "FAILED": 0xFF0000,
+    "IN PROGRESS": 0x0000FF,
+    "SUCCEEDED": 0x00FF00,
+}
 
-"""
-{"account": "890058568674", "detailType": "CodePipeline Pipeline Execution State Change", "region": "us-west-2", "source": "aws.codepipeline", "time": "2021-08-15T10:19:15Z", "notificationRuleArn": "arn:aws:codestar-notifications:us-west-2:890058568674:notificationrule/2c2abf2977c16930f768b6bae4ba1adc37554d4c", "detail": {"pipeline": "WayaWolfCoin", "execution-id": "863b3f68-aab1-4744-b184-68462573160a", "execution-trigger": {"trigger-type": "StartPipelineExecution", "trigger-detail": "arn:aws:iam::890058568674:root"}, "state": "STARTED", "version": 9.0}, "resources": ["arn:aws:codepipeline:us-west-2:890058568674:WayaWolfCoin"], "additionalAttributes": {}}
+default_avatar_url = 'https://a0.awsstatic.com/libra-css/images/logos/aws_logo_smile_1200x630.png'
+default_username = 'BuildBot'
 
-{"account": "890058568674", "detailType": "CodePipeline Action Execution State Change", "region": "us-west-2", "source": "aws.codepipeline", "time": "2021-08-15T10:30:10Z", "notificationRuleArn": "arn:aws:codestar-notifications:us-west-2:890058568674:notificationrule/2c2abf2977c16930f768b6bae4ba1adc37554d4c", "detail": {"pipeline": "WayaWolfCoin", "execution-id": "863b3f68-aab1-4744-b184-68462573160a", "stage": "Build", "execution-result": {"external-execution-url": "https://console.aws.amazon.com/codebuild/home?region=us-west-2#/builds/build-batch/WayaWolfCoin:79f99f78-a79f-48e4-aa9e-4fffdbf3fc9b/view/new", "external-execution-id": "build-batch/WayaWolfCoin:79f99f78-a79f-48e4-aa9e-4fffdbf3fc9b"}, "output-artifacts": [{"name": "Output", "s3location": {"bucket": "codepipeline-us-west-2-19350903934", "key": "WayaWolfCoin/Output/geJaVBS"}}], "action": "Build", "state": "SUCCEEDED", "region": "us-west-2", "type": {"owner": "AWS", "provider": "CodeBuild", "category": "Build", "version": "1"}, "version": 9.0}, "resources": ["arn:aws:codepipeline:us-west-2:890058568674:WayaWolfCoin"], "additionalAttributes": {}}
-"""
 
 def parse_service_event(event):
     source = event.get("source", None)
@@ -21,10 +28,7 @@ def parse_service_event(event):
         return parse_codepipeline_event(event)
     elif source == "aws.codebuild":
         return parse_codebuild_event(event)
-        
-    
-notify_phases = ["QUEUED", "BUILD", "COMPLETED"]
-        
+
 
 def parse_codebuild_event(event):
     detail = event.get("detail", {})
@@ -43,6 +47,8 @@ def parse_codebuild_event(event):
         
     phases = additional.get("phases", [])
     phases = {item.get("phase-type", None): item for item in phases}
+    
+    status = detail.get("build-status", "IN PROGRESS")
     
     items = [
         {
@@ -67,7 +73,7 @@ def parse_codebuild_event(event):
         },
         {
             'name': 'Status',
-            'value': detail.get("build-status", "IN PROGRESS"),
+            'value': status,
             'inline': True,
         },
         {
@@ -88,11 +94,12 @@ def parse_codebuild_event(event):
                     'inline': True,
                 })
 
-    return items
+    return items, status
 
         
 def parse_codepipeline_event(event):
     detail = event.get("detail", {})
+    status = detail.get("state", "Unknown")
     items = [
         {
             'name': 'Pipeline',
@@ -100,8 +107,8 @@ def parse_codepipeline_event(event):
             "inline": True,
         },
         {
-            'name': 'State',
-            'value': detail.get("state", "Unknown"),
+            'name': 'Status',
+            'value': status,
             "inline": True,
         },
     ]
@@ -124,24 +131,34 @@ def parse_codepipeline_event(event):
                 "inline": True,
             })
         
-    return items
+    return items, status
+
 
 
 def lambda_handler(event, context):
     webhook_url = os.getenv("WEBHOOK_URL")
-    print(event)
+    username = os.getenv("BOT_USERNAME", default_username)
+    avatar_url = os.getenv("BOT_AVATAR", default_avatar_url)
+    
+    if not webhook_url or not username or not avatar_url:
+        return
     
     for record in event.get('Records', []):
         sns_message = json.loads(record['Sns']['Message'])
-        parsed_message = parse_service_event(sns_message)
-        if not parsed_message:
+        try:
+            parsed_message, status = parse_service_event(sns_message)
+            if not parsed_message:
+                raise Exception
+        except Exception:
             continue
         
+        color = status_colors.get(status, 0xCCCCCC)
+
         discord_data = {
-            'username': 'CoinBuilder',
-            'avatar_url': 'https://a0.awsstatic.com/libra-css/images/logos/aws_logo_smile_1200x630.png',
+            'username': username,
+            'avatar_url': avatar_url,
             'embeds': [{
-                'color': 16711680,
+                'color': color,
                 'fields': parsed_message
             }]
         }
@@ -152,3 +169,4 @@ def lambda_handler(event, context):
 
         logging.info(f'Discord response: {response.status_code}')
         logging.info(response.content)
+        
