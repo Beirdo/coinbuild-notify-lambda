@@ -79,24 +79,24 @@ def parse_codebuild_event(event):
                 }
             ])
 
-        items.extend(
-            [
-                {
-                    'name': "Build Number",
-                    'value': int(additional.get("build-number", -1.0)),
-                    'inline': True,
-                },
-                {
-                    'name': 'Status',
-                    'value': status,
-                    'inline': True,
-                },
-                {
-                    'name': 'Phase',
-                    'value': phase,
-                    'inline': True,
-                }
-            ])
+    items.extend(
+        [
+            {
+                'name': "Build Number",
+                'value': int(additional.get("build-number", -1.0)),
+                'inline': True,
+            },
+            {
+                'name': 'Status',
+                'value': status,
+                'inline': True,
+            },
+            {
+                'name': 'Phase',
+                'value': phase,
+                'inline': True,
+            }
+        ])
 
     build_phase = phases.get("BUILD", {})
     if build_phase.get("end-time", None):
